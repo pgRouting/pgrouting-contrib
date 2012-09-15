@@ -96,7 +96,7 @@ public class PgRoutingWriter implements PostProcessor {
             + "x2 double precision, y2 double precision"
             + ");\n"
             + "SELECT AddGeometryColumn('" + tableName + "', "
-            + "'geom_way', 4326, 'MULTILINESTRING', 2);\n")
+            + "'geom_way', 4326, 'LINESTRING', 2);\n")
         .getBytes());
 
         byte[] INSERT = ("\nINSERT INTO " + tableName + " VALUES ").getBytes();
