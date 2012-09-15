@@ -689,10 +689,11 @@ BEGIN
 	select relname INTO seqname from pg_class where relname='rownum';
 	
 	IF seqname IS NOT NULL THEN
-	EXECUTE 'drop sequence rownum';
+      PERFORM setval('rownum', 1, false);
+    ELSE
+      EXECUTE 'create sequence rownum';
 	END IF;
 
-	EXECUTE 'create sequence rownum';
 	
         IF s_gid = t_gid THEN
 	  
@@ -1033,10 +1034,10 @@ BEGIN
 	select relname INTO seqname from pg_class where relname='rownum';
 	
 	IF seqname IS NOT NULL THEN
-	EXECUTE 'drop sequence rownum';
+      PERFORM setval('rownum', 1, false);
+    ELSE
+      EXECUTE 'create sequence rownum';
 	END IF;
-
-	EXECUTE 'create sequence rownum';
 	
         IF s_gid = t_gid THEN
 	  
