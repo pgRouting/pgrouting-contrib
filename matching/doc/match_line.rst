@@ -25,7 +25,7 @@ Name
 Synopsis
 -------------------------------------------------------------------------------
 
-Returns a set of :ref:`pgr_costResult <type_cost_result>` (seq, id1, id2, cost) rows, that make up a path.
+Returns a set of `pgr_costResult`` (seq, id1, id2, cost) rows, that make up a path.
 
 .. code-block:: sql
 
@@ -42,7 +42,7 @@ Description
 :directed: ``true`` if the graph is directed
 :has_rcost: if ``true``, the ``reverse_cost`` column of the SQL generated set of rows will be used for the cost of the traversal of the edge in the opposite direction.
 
-Returns set of :ref:`type_cost_result`:
+Returns set of ``pgr_costResult``:
 
 :seq:   row sequence
 :id1:   node ID
@@ -52,7 +52,7 @@ Returns set of :ref:`type_cost_result`:
 
 .. rubric:: History
 
-* New in version 2.0.0
+* Moved to pgrouting-contrib repository
 
 
 Examples
@@ -66,4 +66,4 @@ Examples
 See Also
 -------------------------------------------------------------------------------
 
-* :ref:`type_cost_result`
+* [TBD]

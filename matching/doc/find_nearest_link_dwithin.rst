@@ -42,7 +42,7 @@ Description
 
 .. rubric:: History
 
-* New in version 2.0.0
+* Moved to pgrouting-contrib repository
 
 
 Examples
