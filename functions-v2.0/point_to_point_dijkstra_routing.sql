@@ -1,8 +1,5 @@
 -------------------------------------------------------------------
---Author:-Smita Kumari Dolly
---Contributor to the Algorithm: Sugandha
---Date:-3/12/2013
---Tested with Postgresql9.1, postgis1.5, pgrouting1.05 for 8.4
+--Tested with Postgresql8.4, postgis1.5, pgrouting1.05 for 9.1
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
@@ -78,163 +75,83 @@ CREATE OR REPLACE FUNCTION point_to_point_shortest_path(source_point_geom varcha
          
     BEGIN
     
-    	 EXECUTE 'select * from cleanup_virtual_values_in_table('''||tbl||''')';
+		EXECUTE 'select * from cleanup_virtual_values_in_table('''||tbl||''')';
     
-    	 FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-	      END LOOP;
-	 srid:= row.srid;
-	
-	 FOR row IN EXECUTE 'select fetch_closest_edge_within_distance_xy('''||source_point_geom||''', '||distance||', '''||tbl||''') as gid' LOOP
-		      END LOOP;
-	 closest_linestring_id_from_source_geom:= row.gid;
-	
-	 FOR row IN EXECUTE 'select fetch_closest_edge_within_distance_xy('''||target_point_geom||''', '||distance||', '''||tbl||''') as gid' LOOP
-	 		      END LOOP;
-	 closest_linestring_id_from_target_geom:= row.gid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
+		
+		EXECUTE 'select fetch_closest_edge_within_distance_xy('''||source_point_geom||''', '||distance||', '''||tbl||''') as gid' INTO closest_linestring_id_from_source_geom;
+		     
+		EXECUTE 'select fetch_closest_edge_within_distance_xy('''||target_point_geom||''', '||distance||', '''||tbl||''') as gid' INTO closest_linestring_id_from_target_geom;
+		
+		EXECUTE 'select fetch_snapped_loc_fraction_of_point_on_edge('||closest_linestring_id_from_source_geom||','''||source_point_geom||''', '''||tbl||''') as fraction'  INTO  fraction_at_which_source_geom_on_closest_line_substring;
 	 
-	 FOR row IN EXECUTE 'select fetch_snapped_loc_fraction_of_point_on_edge('||closest_linestring_id_from_source_geom||','''||source_point_geom||''', '''||tbl||''') as fraction' LOOP
-	 	 		      END LOOP;
-	 fraction_at_which_source_geom_on_closest_line_substring:= row.fraction;
+		EXECUTE 'select fetch_snapped_loc_fraction_of_point_on_edge('||closest_linestring_id_from_target_geom||','''||target_point_geom||''', '''||tbl||''') as fraction' INTO fraction_at_which_target_geom_on_closest_line_substring;
+		
+		EXECUTE 'select fetch_first_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_source_geom||', '||fraction_at_which_source_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' INTO first_part_road_geom_where_source_geom_snapped;
 	 
-	 FOR row IN EXECUTE 'select fetch_snapped_loc_fraction_of_point_on_edge('||closest_linestring_id_from_target_geom||','''||target_point_geom||''', '''||tbl||''') as fraction' LOOP
-	 	 	 		      END LOOP;
-	 fraction_at_which_target_geom_on_closest_line_substring:= row.fraction;
+		EXECUTE 'select GeometryFromText('''||first_part_road_geom_where_source_geom_snapped||''', '||srid||') as geom' INTO first_part_road_geom_where_source_geom_snapped_geom;
 	 
+		EXECUTE 'select fetch_second_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_source_geom||', '||fraction_at_which_source_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' INTO second_part_road_geom_where_source_geom_snapped;
 	 
-	 FOR row IN EXECUTE 'select fetch_first_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_source_geom||', '||fraction_at_which_source_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' LOOP
-	 	 	 	 		      END LOOP;
-	 first_part_road_geom_where_source_geom_snapped:= row.the_geom;
+		EXECUTE 'select GeometryFromText('''||second_part_road_geom_where_source_geom_snapped||''', '||srid||') as geom' INTO second_part_road_geom_where_source_geom_snapped_geom;
 	 
-	 FOR row IN EXECUTE 'select GeometryFromText('''||first_part_road_geom_where_source_geom_snapped||''', '||srid||') as geom'
-	 			    	 LOOP
-	 				 END LOOP;
-	 first_part_road_geom_where_source_geom_snapped_geom:= row.geom;
+		EXECUTE 'select fetch_first_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_target_geom||', '||fraction_at_which_target_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' INTO first_part_road_geom_where_target_geom_snapped;
+		
+		EXECUTE 'select GeometryFromText('''||first_part_road_geom_where_target_geom_snapped||''', '||srid||') as geom' INTO first_part_road_geom_where_target_geom_snapped_geom;
+	 	
+		EXECUTE 'select fetch_second_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_target_geom||', '||fraction_at_which_target_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' INTO second_part_road_geom_where_target_geom_snapped;
+		
+		EXECUTE 'select GeometryFromText('''||second_part_road_geom_where_target_geom_snapped||''', '||srid||') as geom' INTO second_part_road_geom_where_target_geom_snapped_geom;
+		
+		EXECUTE 'select has_reverse_length('''||tbl||''', '||closest_linestring_id_from_source_geom||')  as val' INTO is_source_edge_unidirectional;
 	 
-	 FOR row IN EXECUTE 'select fetch_second_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_source_geom||', '||fraction_at_which_source_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' LOOP
-	 	 	 	 	 		      END LOOP;
-	 second_part_road_geom_where_source_geom_snapped:= row.the_geom;
-	 
-	 FOR row IN EXECUTE 'select GeometryFromText('''||second_part_road_geom_where_source_geom_snapped||''', '||srid||') as geom'
-	 	 			    	 LOOP
-	 	 				 END LOOP;
-	 second_part_road_geom_where_source_geom_snapped_geom:= row.geom;
-	 
-	 FOR row IN EXECUTE 'select fetch_first_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_target_geom||', '||fraction_at_which_target_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' LOOP
-	 	 	 	 	 		      END LOOP;
-	 first_part_road_geom_where_target_geom_snapped:= row.the_geom;
-	 
-	 FOR row IN EXECUTE 'select GeometryFromText('''||first_part_road_geom_where_target_geom_snapped||''', '||srid||') as geom'
-	 	 	 			    	 LOOP
-	 	 	 				 END LOOP;
-	 first_part_road_geom_where_target_geom_snapped_geom:= row.geom;
-	 	 
-	 FOR row IN EXECUTE 'select fetch_second_half_of_the_geom_based_on_a_fraction('||closest_linestring_id_from_target_geom||', '||fraction_at_which_target_geom_on_closest_line_substring||', '''||tbl||''') as the_geom' LOOP
-	 	 	 	 	 	 		      END LOOP;
-	 second_part_road_geom_where_target_geom_snapped:= row.the_geom;
-	 
-	 FOR row IN EXECUTE 'select GeometryFromText('''||second_part_road_geom_where_target_geom_snapped||''', '||srid||') as geom'
-	 	 	 	 			    	 LOOP
-	 	 	 	 				 END LOOP;
-	 second_part_road_geom_where_target_geom_snapped_geom:= row.geom;
-	 
-	
-	
-	
-	
-	 FOR row IN EXECUTE 'select has_reverse_length('''||tbl||''', '||closest_linestring_id_from_source_geom||')  as val' LOOP
-	 	 		      END LOOP;
-	 is_source_edge_unidirectional:= row.val;
-	 
-	 FOR row IN EXECUTE 'select has_reverse_length('''||tbl||''', '||closest_linestring_id_from_target_geom||')  as val' LOOP
-	 	 	 		      END LOOP;
-	 is_target_edge_unidirectional:= row.val;
-	 
-	
-	
-	 
-	 --virtual segments creation of the source point geom
-	 FOR row IN EXECUTE 'select fetch_start_id_of_an_edge('||closest_linestring_id_from_source_geom||', '''||tbl||''') as start_id' LOOP
-	 		      END LOOP;
-	 start_id:= row.start_id;
-	 
-	 FOR row IN EXECUTE 'select fetch_end_id_of_an_edge('||closest_linestring_id_from_source_geom||', '''||tbl||''') as end_id' LOOP
-	 	 		      END LOOP;
-	 end_id:= row.end_id;
-	 
-	 FOR row IN EXECUTE 'select fetch_virtual_start_id_or_end_id('''||tbl||''') as virtual_start_id' LOOP
-	 	 	 		      END LOOP;
-	 virtual_start_id:= row.virtual_start_id;
-	 
-	 FOR row IN EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' LOOP
-	 	 	 	 		      END LOOP;
-	 virtual_gid:= row.virtual_gid;
+		EXECUTE 'select has_reverse_length('''||tbl||''', '||closest_linestring_id_from_target_geom||')  as val' INTO is_target_edge_unidirectional;
+
+	--virtual segments creation of the source point geom
+		EXECUTE 'select fetch_start_id_of_an_edge('||closest_linestring_id_from_source_geom||', '''||tbl||''') as start_id' INTO start_id;
+		
+		EXECUTE 'select fetch_end_id_of_an_edge('||closest_linestring_id_from_source_geom||', '''||tbl||''') as end_id' INTO end_id;
+		
+		EXECUTE 'select fetch_virtual_start_id_or_end_id('''||tbl||''') as virtual_start_id' INTO virtual_start_id;
+		
+		EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' INTO virtual_gid;
 	 
 	 --update first part of the road for source
-	 IF is_source_edge_unidirectional = 1  THEN
-	  FOR row IN EXECUTE
-	 	 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||first_part_road_geom_where_source_geom_snapped||''', '||start_id||', '||virtual_start_id||','''||tbl||''','||is_source_edge_unidirectional||' )' LOOP
-	 	 	 	 		      END LOOP;
-	
-	 ELSE
-	 FOR row IN EXECUTE
-	 	 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||first_part_road_geom_where_source_geom_snapped||''', '||virtual_start_id||', '||start_id||','''||tbl||''', '||is_source_edge_unidirectional||')' LOOP
-	 	 	 	 		      END LOOP;
-
-	 END IF;
+	IF is_source_edge_unidirectional = 1  THEN
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||first_part_road_geom_where_source_geom_snapped||''', '||start_id||', '||virtual_start_id||','''||tbl||''','||is_source_edge_unidirectional||' )';
+	ELSE
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||first_part_road_geom_where_source_geom_snapped||''', '||virtual_start_id||', '||start_id||','''||tbl||''', '||is_source_edge_unidirectional||')';
+	END IF;
 	 
 	 --update second part of the road for source
-	 FOR row IN EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' LOOP
-	 	 	 	 	 		      END LOOP;
-	 virtual_gid:= row.virtual_gid;
-	 
-	 FOR row IN EXECUTE
-	  'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||second_part_road_geom_where_source_geom_snapped||''', '||virtual_start_id||', '||end_id||','''||tbl||''', '||is_source_edge_unidirectional||')' LOOP
-	 	 	 	 	 		      END LOOP;
+		EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' INTO virtual_gid;
+		
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_source_geom||', '''||second_part_road_geom_where_source_geom_snapped||''', '||virtual_start_id||', '||end_id||','''||tbl||''', '||is_source_edge_unidirectional||')';
 	
-	  --virtual segments creation of the target point geom
+	
+	 --virtual segments creation of the target point geom
 	 
-	  FOR row IN EXECUTE 'select fetch_start_id_of_an_edge('||closest_linestring_id_from_target_geom||', '''||tbl||''') as start_id' LOOP
-	 	 		      END LOOP;
-	 start_id:= row.start_id;
+		EXECUTE 'select fetch_start_id_of_an_edge('||closest_linestring_id_from_target_geom||', '''||tbl||''') as start_id' INTO start_id;
 
-	 FOR row IN EXECUTE 'select fetch_end_id_of_an_edge('||closest_linestring_id_from_target_geom||', '''||tbl||''') as end_id' LOOP
-				      END LOOP;
-	 end_id:= row.end_id;
+		EXECUTE 'select fetch_end_id_of_an_edge('||closest_linestring_id_from_target_geom||', '''||tbl||''') as end_id' INTO end_id;
 
-	 FOR row IN EXECUTE 'select fetch_virtual_start_id_or_end_id('''||tbl||''') as virtual_end_id' LOOP
-					      END LOOP;
-	 virtual_end_id:= row.virtual_end_id;
+		EXECUTE 'select fetch_virtual_start_id_or_end_id('''||tbl||''') as virtual_end_id' INTO virtual_end_id;
 
-	 FOR row IN EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' LOOP
-						      END LOOP;
-	 virtual_gid:= row.virtual_gid;
+		EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' INTO virtual_gid;
 
 	 --update first part of the road for target
-	  FOR row IN EXECUTE
-	 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||first_part_road_geom_where_target_geom_snapped||''', '||start_id||', '||virtual_end_id||','''||tbl||''', '||is_target_edge_unidirectional||')' LOOP
-	  	 	 	 	 		      END LOOP;
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||first_part_road_geom_where_target_geom_snapped||''', '||start_id||', '||virtual_end_id||','''||tbl||''', '||is_target_edge_unidirectional||')';
           
-          FOR row IN EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' LOOP
-	  	 	 	 	 		      END LOOP;
-	 virtual_gid:= row.virtual_gid;
-          
-           IF is_target_edge_unidirectional = 1  THEN
-   	 --update second part of the road for target
-	  FOR row IN EXECUTE
-	  'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||second_part_road_geom_where_target_geom_snapped||''', '||virtual_end_id||', '||end_id||','''||tbl||''', '||is_target_edge_unidirectional||')' LOOP
-	  	 	 	 	 		      END LOOP;
-
-           ELSE
-           FOR row IN EXECUTE
-	  'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||second_part_road_geom_where_target_geom_snapped||''', '||end_id||','||virtual_end_id||', '''||tbl||''', '||is_target_edge_unidirectional||')' LOOP
-	  	 	 	 	 		      END LOOP;
-
-           END IF;
+		EXECUTE 'select fetch_virtual_gid('''||tbl||''') as virtual_gid' INTO virtual_gid;
+         
+	--update second part of the road for target	 
+    IF is_target_edge_unidirectional = 1  THEN
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||second_part_road_geom_where_target_geom_snapped||''', '||virtual_end_id||', '||end_id||','''||tbl||''', '||is_target_edge_unidirectional||')';
+	ELSE
+		EXECUTE 'select create_update_virtual_edge('||virtual_gid||','||closest_linestring_id_from_target_geom||', '''||second_part_road_geom_where_target_geom_snapped||''', '||end_id||','||virtual_end_id||', '''||tbl||''', '||is_target_edge_unidirectional||')';
+	END IF;
 	
-	
-	 
-	 
-	 
+ 
 	FOR result IN EXECUTE 'SELECT * FROM '||
 						  'shortest_path(''SELECT gid AS id, 
 								  start_id::int4 AS source, 
@@ -298,46 +215,23 @@ CREATE OR REPLACE FUNCTION create_update_virtual_edge(gid int, edge_id int, virt
          
     BEGIN
     
-    	 FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-	      END LOOP;
-	srid:= row.srid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
     
-    	 FOR row IN EXECUTE 'select osm_name as osm_name from '||tbl||' where gid = '||edge_id||'' 
-    	 LOOP
-	 END LOOP;
-	osm_name:= row.osm_name;
+    	EXECUTE 'select osm_name as osm_name from '||tbl||' where gid = '||edge_id||'' INTO osm_name;
 	
-	 FOR row IN EXECUTE 'select speed_in_kmh as speed_in_kmh from '||tbl||' where gid = '||edge_id||'' 
-	    	 LOOP
-		 END LOOP;
-	speed_in_kmh:= row.speed_in_kmh;
+		EXECUTE 'select speed_in_kmh as speed_in_kmh from '||tbl||' where gid = '||edge_id||'' INTO speed_in_kmh;
 	
-	 FOR row IN EXECUTE 'select ST_Length(GeometryFromText('''||virtual_geom||''', '||srid||')) as length'
-		    	 LOOP
-			 END LOOP;
-	length:= row.length;
-	
-	FOR row IN EXECUTE 'select GeometryFromText('''||virtual_geom||''', '||srid||') as virtual_multigeom'
-			    	 LOOP
-				 END LOOP;
-	geom:= row.virtual_multigeom;
+		EXECUTE 'select ST_Length(GeometryFromText('''||virtual_geom||''', '||srid||')) as length' INTO length;
+		
+		EXECUTE 'select GeometryFromText('''||virtual_geom||''', '||srid||') as virtual_multigeom' INTO geom;
 	
 	IF is_unidirectional THEN
-	
-	reverse_length:= 100000;
-	
+		reverse_length:= 100000;
 	elSE
-	
-	reverse_length:= length;
-	
+		reverse_length:= length;
 	END IF;
 	
-	
-	
-	
-	
-        EXECUTE
-	        'INSERT INTO '||tbl||' (gid, the_geom, start_id, end_id, osm_name, speed_in_kmh, length, row_flag, reverse_length) VALUES ('||gid||', ST_GeomFromText('''||virtual_geom||''', '||srid||') ,'||start_id||','||end_id||', '''||osm_name||''', '||speed_in_kmh||', '||length||', true, '||reverse_length||')';
+        EXECUTE 'INSERT INTO '||tbl||' (gid, the_geom, start_id, end_id, osm_name, speed_in_kmh, length, row_flag, reverse_length) VALUES ('||gid||', ST_GeomFromText('''||virtual_geom||''', '||srid||') ,'||start_id||','||end_id||', '''||osm_name||''', '||speed_in_kmh||', '||length||', true, '||reverse_length||')';
         
     END;
 $$ 
@@ -352,21 +246,20 @@ CREATE OR REPLACE FUNCTION fetch_virtual_gid(tbl varchar)
 $$
 DECLARE
     row record;
+	gid int;
     
 BEGIN
 	
     -- get start id of specified edge
 
-    FOR row in EXECUTE 'select (max(gid)+1) as gid FROM '||tbl||''
-    LOOP
-    END LOOP;
+		EXECUTE 'select (max(gid)+1) as gid FROM '||tbl||'' INTO gid;
 
-    IF row.gid IS NULL THEN
+    IF gid IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.gid;
+    RETURN gid;
 
 END;
 $$
@@ -380,21 +273,19 @@ CREATE OR REPLACE FUNCTION fetch_virtual_start_id_or_end_id(tbl varchar)
 $$
 DECLARE
     row record;
-    
+    maxVal int;
 BEGIN
 	
     -- get start id of specified edge
 
-    FOR row in EXECUTE 'SELECT GREATEST(max(start_id), max(end_id))+1 as maxVal FROM '||tbl||''
-    LOOP
-    END LOOP;
+		EXECUTE 'SELECT GREATEST(max(start_id), max(end_id))+1 as maxVal FROM '||tbl||'' INTO maxVal;
 
-    IF row.maxVal IS NULL THEN
+    IF maxVal IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.maxVal;
+    RETURN maxVal;
 
 END;
 $$
@@ -410,21 +301,19 @@ CREATE OR REPLACE FUNCTION fetch_end_id_of_an_edge(edge_id int, tbl varchar)
 $$
 DECLARE
     row record;
-    
+    end_id int;
 BEGIN
 	
     -- get start id of specified edge
 
-    FOR row in EXECUTE 'SELECT end_id as end_id FROM '||tbl||' WHERE gid = '||edge_id||''
-    LOOP
-    END LOOP;
+		EXECUTE 'SELECT end_id as end_id FROM '||tbl||' WHERE gid = '||edge_id||'' INTO end_id;
 
-    IF row.end_id IS NULL THEN
+    IF end_id IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.end_id;
+    RETURN end_id;
 
 END;
 $$
@@ -439,21 +328,19 @@ CREATE OR REPLACE FUNCTION fetch_start_id_of_an_edge(edge_id int, tbl varchar)
 $$
 DECLARE
     row record;
-    
+    start_id int;
 BEGIN
 	
     -- get start id of specified edge
 
-    FOR row in EXECUTE 'SELECT start_id as start_id FROM '||tbl||' WHERE gid = '||edge_id||''
-    LOOP
-    END LOOP;
+		EXECUTE 'SELECT start_id as start_id FROM '||tbl||' WHERE gid = '||edge_id||'' INTO start_id;
 
-    IF row.start_id IS NULL THEN
+    IF start_id IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.start_id;
+    RETURN start_id;
 
 END;
 $$
@@ -472,27 +359,24 @@ $$
 DECLARE
     row record;
     srid integer;
+	geom_text text;
     
 BEGIN
 
-   FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-      END LOOP;
-	srid:= row.srid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
 	
     -- getting the fraction at which a point lie on an edge
 
-    FOR row in EXECUTE 'SELECT ST_AsText(ST_GeomFromEWKT(ST_Line_Substring(the_geom, '||fraction||', 1))) as geom_text
+		EXECUTE 'SELECT ST_AsText(ST_GeomFromEWKT(ST_Line_Substring(the_geom, '||fraction||', 1))) as geom_text
 						  FROM '||tbl||'
-						  WHERE gid = '||edge_id||''
-    LOOP
-    END LOOP;
+						  WHERE gid = '||edge_id||'' INTO geom_text;
 
-    IF row.geom_text IS NULL THEN
+    IF geom_text IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.geom_text;
+    RETURN geom_text;
 
 END;
 $$
@@ -511,27 +395,24 @@ $$
 DECLARE
     row record;
     srid integer;
+	geom_text text;
     
 BEGIN
 
-   FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-      END LOOP;
-	srid:= row.srid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
 	
     -- getting the fraction at which a point lie on an edge
 
-    FOR row in EXECUTE 'SELECT ST_AsText(ST_GeomFromEWKT(ST_Line_Substring(the_geom, 0, '||fraction||'))) as geom_text
+		EXECUTE 'SELECT ST_AsText(ST_GeomFromEWKT(ST_Line_Substring(the_geom, 0, '||fraction||'))) as geom_text
 						  FROM '||tbl||'
-						  WHERE gid = '||edge_id||''
-    LOOP
-    END LOOP;
+						  WHERE gid = '||edge_id||'' INTO geom_text;
 
-    IF row.geom_text IS NULL THEN
+    IF geom_text IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.geom_text;
+    RETURN geom_text;
 
 END;
 $$
@@ -550,28 +431,24 @@ $$
 DECLARE
     row record;
     srid integer;
-    
+    snapped_fraction double precision;
 BEGIN
 
-   FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-      END LOOP;
-	srid:= row.srid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
 	
     -- getting the fraction at which a point lie on an edge
 
-    FOR row in EXECUTE 'SELECT ST_Line_Locate_Point(ST_LineMerge(the_geom),GeometryFromText('''||point||''', '||srid||')) as snapped_fraction
+		EXECUTE 'SELECT ST_Line_Locate_Point(ST_LineMerge(the_geom),GeometryFromText('''||point||''', '||srid||')) as snapped_fraction
 						  FROM 
 						  '||tbl||'
-						  WHERE gid = '||edge_id||''
-    LOOP
-    END LOOP;
+						  WHERE gid = '||edge_id||'' INTO snapped_fraction;
 
-    IF row.snapped_fraction IS NULL THEN
+    IF snapped_fraction IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.snapped_fraction;
+    RETURN snapped_fraction;
 
 END;
 $$
@@ -592,29 +469,25 @@ $$
 DECLARE
     row record;
     srid integer;
-    
+    gid int;
 BEGIN
 
-   FOR row IN EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' LOOP
-      END LOOP;
-	srid:= row.srid;
+		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
 	
     -- Searching for a link within the distance
 
-    FOR row in EXECUTE 'SELECT t1.gid  FROM  '||tbl||' as t1 WHERE
+		EXECUTE 'SELECT t1.gid  FROM  '||tbl||' as t1 WHERE
 						 ST_Expand(GeometryFromText('''||point||''', '||srid||'),'||distance||') && t1.the_geom 
 						 ORDER BY
 						 ST_Distance(GeometryFromText('''||point||''', '||srid||'),t1.the_geom)
-						 ASC LIMIT 1'
-    LOOP
-    END LOOP;
+						 ASC LIMIT 1' INTO gid;
 
-    IF row.gid IS NULL THEN
+    IF gid IS NULL THEN
 	    --RAISE EXCEPTION 'Data cannot be matched';
 	    RETURN NULL;
     END IF;
 
-    RETURN row.gid;
+    RETURN gid;
 
 END;
 $$
