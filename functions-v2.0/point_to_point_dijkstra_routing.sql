@@ -16,7 +16,7 @@
 -------------------------------------------------------------------
 
 
---CREATE TYPE path_result AS (vertex_id integer, edge_id integer, cost float8);
+
 
 -------------------------------------------------------------------
 -- This function delete all the virtual edge and the 
@@ -217,7 +217,7 @@ CREATE OR REPLACE FUNCTION create_update_virtual_edge(gid int, edge_id int, virt
     
 		EXECUTE 'select getsrid(the_geom) as srid from '||tbl||' where gid = (select min(gid) from '||tbl||')' INTO srid;
     
-    	EXECUTE 'select osm_name as osm_name from '||tbl||' where gid = '||edge_id||'' INTO osm_name;
+    		EXECUTE 'select replace(osm_name,'''''''','''''''''''') as osm_name from '||tbl||' where gid = '||edge_id||'' INTO osm_name;
 	
 		EXECUTE 'select speed_in_kmh as speed_in_kmh from '||tbl||' where gid = '||edge_id||'' INTO speed_in_kmh;
 	
@@ -230,6 +230,9 @@ CREATE OR REPLACE FUNCTION create_update_virtual_edge(gid int, edge_id int, virt
 	elSE
 		reverse_length:= length;
 	END IF;
+	
+	
+	
 	
         EXECUTE 'INSERT INTO '||tbl||' (gid, the_geom, start_id, end_id, osm_name, speed_in_kmh, length, row_flag, reverse_length) VALUES ('||gid||', ST_GeomFromText('''||virtual_geom||''', '||srid||') ,'||start_id||','||end_id||', '''||osm_name||''', '||speed_in_kmh||', '||length||', true, '||reverse_length||')';
         
